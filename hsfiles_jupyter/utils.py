@@ -182,7 +182,7 @@ class ResourceFileCacheManager:
     def get_resource_file_cache(self, resource: Resource) -> ResourceFilesCache:
         return next((rc for rc in self.resource_file_caches if rc.resource.resource_id == resource.resource_id), None)
 
-    def get_files(self, resource: Resource, refresh=False) -> (list, bool):
+    def get_files(self, resource: Resource, refresh=False) -> tuple[list, bool]:
         """Get a list of file paths in a HydroShare resource. If the cache is up to date, return the cached files."""
 
         resource_file_cache = self.get_resource_file_cache(resource)
@@ -258,7 +258,7 @@ class ResourceFileCacheManager:
 
 
 @lru_cache(maxsize=None)
-def get_credentials() -> (str, str):
+def get_credentials() -> tuple[str, str]:
     """The Hydroshare user credentials files used here are created by nbfetch as part of resource
     open with Jupyter functionality, This extension depends on those files for user credentials."""
 
