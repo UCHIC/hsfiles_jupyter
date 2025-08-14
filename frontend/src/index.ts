@@ -29,6 +29,41 @@ async function requestAPI<T>(url: string, init: RequestInit): Promise<T> {
     return data.response;
 }
 
+// Cache for configuration to avoid repeated API calls
+let configCache: { download_dir?: string } | null = null;
+let configPromise: Promise<{ download_dir: string }> | null = null;
+
+async function getConfig(): Promise<{ download_dir: string }> {
+    if (configCache) {
+        return configCache as { download_dir: string };
+    }
+
+    // If there's already a config request in progress, wait for it
+    if (configPromise) {
+        return configPromise;
+    }
+
+    configPromise = (async () => {
+        const response = await requestAPI<{ download_dir: string }>('config', {
+            method: 'GET'
+        });
+
+        configCache = response;
+        return response;
+    })();
+
+    return configPromise;
+}
+
+// Initialize config cache on extension load
+function initializeConfig() {
+    getConfig().catch(error => {
+        console.error('Failed to load configuration from backend. HydroShare file operations will be disabled:', error);
+        // Don't set default values - if backend config fails, the extension shouldn't work
+        configCache = null;
+    });
+}
+
 function disableFileBrowser(fileBrowser: FileBrowser) {
     fileBrowser.node.style.pointerEvents = 'none';
     fileBrowser.node.style.opacity = '0.5';
