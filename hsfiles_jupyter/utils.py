@@ -2,6 +2,7 @@ import hashlib
 import logging
 import os
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -365,3 +366,12 @@ def calculate_md5(file_path):
             md5_hash.update(chunk)
 
     return md5_hash.hexdigest()
+
+def is_uuid4_32(value: str) -> bool:
+    """Check if value is a valid 32-char UUID v4 hex string."""
+    if len(value) != 32:
+        return False
+    try:
+        return uuid.UUID(value).version == 4
+    except ValueError:
+        return False
