@@ -76,6 +76,94 @@ function enableFileBrowser(fileBrowser: FileBrowser) {
     console.log('File browser enabled');
 }
 
+function isUuid4Hex(value: string): boolean {
+  return typeof value === 'string' && /^[0-9a-f]{32}$/.test(value);
+}
+
+function isFileInHydroShareResource(tracker: IFileBrowserFactory['tracker']): boolean {
+    const widget = tracker.currentWidget;
+    if (!widget) return false;
+
+    const selectedItem = widget.selectedItems().next();
+    if (!selectedItem || !selectedItem.value) return false;
+
+    // Check if the selected file is in the correct directory structure
+    const filePath = selectedItem.value.path;
+    return isValidHydroShareFilePath(filePath);
+}
+
+function isValidHydroShareFilePath(filePath: string): boolean {
+    // If configuration is not available, don't enable any file operations
+    if (!configCache || !configCache.download_dir) return false;
+
+    // Get the expected download directory from config cache
+    const downloadDir = configCache.download_dir;
+    if (!downloadDir || typeof downloadDir !== 'string') return false;
+
+    // Check if the path starts with the download directory and extract resource ID
+    if (!filePath.startsWith(downloadDir + '/')) return false;
+
+    const pathAfterDownloadDir = filePath.split(downloadDir + '/')[1];
+    if (!pathAfterDownloadDir) return false;
+
+    const pathParts = pathAfterDownloadDir.split('/');
+    // Should be: resource_id/data/contents/filename (at least 4 parts)
+    if (pathParts.length < 4) return false;
+
+    const resourceId = pathParts[0];
+    const dataFolder = pathParts[1];
+    const contentsFolder = pathParts[2];
+
+    // Validate the structure: resource_id/data/contents/...
+    return isUuid4Hex(resourceId) && dataFolder === 'data' && contentsFolder === 'contents';
+}
+
+function isInHydroShareResourceForDownload(tracker: IFileBrowserFactory['tracker']): boolean {
+    const widget = tracker.currentWidget;
+    if (!widget) return false;
+
+    // If configuration is not available, don't enable download operations
+    if (!configCache || !configCache.download_dir) return false;
+
+    const currentPath = widget.model.path;
+
+    // Get the expected download directory from config cache
+    const downloadDir = configCache.download_dir;
+    if (!downloadDir || typeof downloadDir !== 'string') return false;
+
+    // Check if we're in the correct directory structure for downloads
+    // The path could be:
+    // - download_dir/resource_id (user clicks inside resource root directory)
+    // - download_dir/resource_id/data (user clicks inside data folder)
+    // - download_dir/resource_id/data/contents (user clicks inside contents folder)
+    // - download_dir/resource_id/data/contents/... (user clicks inside any subfolder of contents folder)
+
+    if (!currentPath.startsWith(downloadDir + '/')) return false;
+
+    const pathAfterDownloadDir = currentPath.split(downloadDir + '/')[1];
+    if (!pathAfterDownloadDir) return false;
+
+    const resourcePathParts = pathAfterDownloadDir.split('/');
+    if (resourcePathParts.length === 0) return false;
+
+    const resourceId = resourcePathParts[0];
+    if (!isUuid4Hex(resourceId)) return false;
+
+    // Check different scenarios based on current path depth
+    if (resourcePathParts.length === 1) {
+        // User is in download_dir/resource_id
+        return true;
+    } else if (resourcePathParts.length === 2 && resourcePathParts[1] === 'data') {
+        // User is in download_dir/resource_id/data
+        return true;
+    } else if (resourcePathParts.length >= 3 && resourcePathParts[1] === 'data' && resourcePathParts[2] === 'contents') {
+        // User is in or below download_dir/resource_id/data/contents - path already validated
+        return true;
+    }
+
+    return false;
+}
+
 async function handleCommand(
     app: JupyterFrontEnd,
     tracker: IFileBrowserFactory['tracker'],
