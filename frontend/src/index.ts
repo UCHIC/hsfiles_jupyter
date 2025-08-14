@@ -373,7 +373,7 @@ async function handleDownloadCommand(
         // Get list of available files
         const filesResponse = await requestAPI<any>('list_files', {
             method: 'POST',
-            body: JSON.stringify({resource_id: resourceId}),
+            body: JSON.stringify({resource_id: resourceId, base_path: basePath}),
         });
 
         if (!filesResponse.available_files || filesResponse.available_files.length === 0) {
@@ -439,7 +439,8 @@ async function handleDownloadCommand(
                 method: 'POST',
                 body: JSON.stringify({
                     resource_id: resourceId,
-                    file_path: selectedFile
+                    file_path: selectedFile,
+                    base_path: basePath
                 }),
             });
 
@@ -482,9 +483,13 @@ const extension: JupyterFrontEndPlugin<void> = {
         const {tracker} = factory;
         console.log('JupyterLab extension hsfiles_jupyter is activated!');
 
+        // Initialize configuration cache
+        initializeConfig();
+
         commands.addCommand('upload-to-hydroshare', {
             label: 'Upload File to HydroShare',
             icon: addIcon,
+            isEnabled: () => isFileInHydroShareResource(tracker),
             execute: async () => {
                 const widget = tracker.currentWidget;
                 if (widget) {
@@ -511,6 +516,7 @@ const extension: JupyterFrontEndPlugin<void> = {
         commands.addCommand('refresh-from-hydroshare', {
             label: 'Replace with File from HydroShare',
             icon: refreshIcon,
+            isEnabled: () => isFileInHydroShareResource(tracker),
             execute: async () => {
                 const result = await showDialog({
                     title: 'Replace File',
@@ -537,6 +543,7 @@ const extension: JupyterFrontEndPlugin<void> = {
         commands.addCommand('delete-file-from-hydroshare', {
             label: `Delete File` + ` in HydroShare`,
             icon: closeIcon,
+            isEnabled: () => isFileInHydroShareResource(tracker),
             execute: async () => {
                 const result = await showDialog({
                     title: 'Delete File',
@@ -564,6 +571,7 @@ const extension: JupyterFrontEndPlugin<void> = {
         commands.addCommand('check-file-status-with-hydroshare', {
             label: 'Check Status of File in HydroShare',
             icon: infoIcon,
+            isEnabled: () => isFileInHydroShareResource(tracker),
             execute: () => handleCommand(
                 app,
                 tracker,
@@ -578,19 +586,7 @@ const extension: JupyterFrontEndPlugin<void> = {
         commands.addCommand('download-from-hydroshare', {
             label: 'Download from HydroShare',
             icon: downloadIcon,
-            isEnabled: () => {
-                const widget = tracker.currentWidget;
-                if (!widget) return false;
-
-                // Check if we're in the correct directory structure
-                const currentPath = widget.model.path;
-                const pathParts = currentPath.split('/');
-                return pathParts.length === 4 &&
-                       pathParts[0] === 'Downloads' &&
-                       pathParts[2] === 'data' &&
-                       pathParts[3] === 'contents' &&
-                       pathParts[1].length === 32;
-            },
+            isEnabled: () => isInHydroShareResourceForDownload(tracker),
             execute: () => handleDownloadCommand(app, tracker)
         });
 
