@@ -38,6 +38,11 @@ class HydroShareAuthError(Exception):
 
     pass
 
+class ExtensionConfigurationError(Exception):
+    """Exception raised for errors in the extension configuration."""
+
+    pass
+
 
 class FileCacheUpdateType(Enum):
     ADD = 1
@@ -151,12 +156,14 @@ class ResourceFileCacheManager:
     def get_hydroshare_resource_info(self, file_path: str) -> HydroShareResourceInfo:
         """Get HydroShare resource information for a given file path."""
         file_path = Path(file_path).as_posix()
+        validate_file_path(file_path)
+
         if not self.user_authorized():
             raise HydroShareAuthError("User is not authorized with HydroShare")
         resource = self.get_resource_from_file_path(file_path)
 
         resource_id = resource.resource_id
-        hs_file_path = get_hs_file_path(file_path)
+        hs_file_path = get_hs_file_path(file_path, resource_id)
 
         # get all files in the resource to check if the file to be acted on already exists in the resource
         files, refresh = self.get_files(resource)
@@ -286,6 +293,7 @@ def get_credentials() -> tuple[str, str]:
 
     return username, password
 
+
 @lru_cache(maxsize=None)
 def get_hydroshare_resource_download_dir() -> str:
     """Get the directory where HydroShare resources are downloaded. This is configured via the JUPYTER_DOWNLOADS
@@ -309,16 +317,53 @@ def get_hydroshare_resource_download_dir() -> str:
 
     return hs_download_dir
 
+
+def validate_file_path(file_path: str) -> None:
+    """Validate the file path is within the HydroShare download directory."""
+
+    hs_download_dir = get_hydroshare_resource_download_dir()
+    if not file_path.startswith(hs_download_dir):
+        err_msg = f"File path {file_path} is not within the HydroShare download directory: {hs_download_dir}."
+        logger.error(err_msg)
+        raise ValueError(err_msg)
+
+    # check it has resource id in it
+    resource_id = get_resource_id(file_path)
+    if not resource_id:
+        err_msg = f"Resource id was not found in selected file path: {file_path}"
+        logger.error(err_msg)
+        raise ValueError(err_msg)
+
+    resource_file_path = get_hs_file_path(file_path, resource_id)
+    expected_path = os.path.join(resource_id, "data", "contents")
+    if not resource_file_path.startswith(expected_path):
+        err_msg = f"Invalid resource file path: {file_path}."
+        logger.error(err_msg)
+        raise ValueError(err_msg)
+
+
 def get_resource_id(file_path: str) -> str:
     log_err_msg = f"Resource id was not found in selected file path: {file_path}"
-    user_err_msg = "Invalid resource file path"
-    if file_path.startswith("Downloads/"):
-        res_id = file_path.split("/")[1]
-        if len(res_id) != 32:
-            logger.error(log_err_msg)
-            raise ValueError(user_err_msg)
-        return res_id
+    user_err_msg = f"Invalid resource file path: {file_path}"
 
+    resource_id = None
+    download_dir = get_hydroshare_resource_download_dir()
+    download_dir = f"{download_dir}/"
+    if not file_path.startswith(download_dir):
+        logger.error(log_err_msg)
+        raise ValueError(user_err_msg)
+
+    # Split by download_dir and get the part after it
+    after_downloads = file_path.split(download_dir, 1)[1]
+    # The resource_id should be the first part after download_dir
+    potential_resource_id = after_downloads.split("/")[0]
+    if is_uuid4_32(potential_resource_id):
+        resource_id = potential_resource_id
+
+    if resource_id:
+        return resource_id
+
+    # If we get here, no valid resource_id was found
     logger.error(log_err_msg)
     raise ValueError(user_err_msg)
 
@@ -340,9 +385,10 @@ def get_local_absolute_file_path(file_path: str) -> str:
     return (Path(notebook_root_dir) / file_path).as_posix()
 
 
-def get_hs_file_path(file_path: str) -> str:
+def get_hs_file_path(file_path: str, resource_id: str = None) -> str:
     file_path = Path(file_path).as_posix()
-    resource_id = get_resource_id(file_path)
+    if resource_id is None:
+        resource_id = get_resource_id(file_path)
     hs_file_path = file_path.split(resource_id, 1)[1]
     hs_file_path = hs_file_path.lstrip("/")
     # add resource id to the file path if it doesn't already start with it
