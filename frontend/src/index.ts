@@ -316,7 +316,27 @@ async function handleDownloadCommand(
     if (!widget) return;
 
     const currentPath = widget.model.path;
-    const pathParts = currentPath.split('/');
+
+    // Check if configuration is available
+    if (!configCache || !configCache.download_dir) {
+        await showDialog({
+            title: 'Configuration Error',
+            body: 'Invalid HydroShare download directory configuration. Please check your server configuration.',
+            buttons: [Dialog.okButton({label: 'OK'})]
+        });
+        return;
+    }
+
+    // Get the expected download directory from config cache
+    const downloadDir = configCache.download_dir;
+    if (!downloadDir || typeof downloadDir !== 'string') {
+        await showDialog({
+            title: 'Configuration Error',
+            body: 'Invalid HydroShare download directory configuration. Please check your server configuration.',
+            buttons: [Dialog.okButton({label: 'OK'})]
+        });
+        return;
+    }
 
     // Extract resource ID from path
     const resourceId = pathParts[1];
