@@ -38,7 +38,11 @@ async def test_download_file_from_hydroshare_success():
                 mock_get_path.return_value = f"/tmp/{resource_id}/data/contents"
 
                 # Call the function
-                result = await download_file_from_hydroshare(resource_id, file_path)
+                result = await download_file_from_hydroshare(
+                    resource_id=resource_id,
+                    hs_file_path=file_path,
+                    base_path="Downloads"
+                )
 
                 # Verify the result
                 assert "success" in result
@@ -74,7 +78,11 @@ async def test_download_file_from_hydroshare_auth_error():
         mock_rfc_manager.get_resource.side_effect = HydroShareAuthError("Auth error")
 
         # Call the function
-        result = await download_file_from_hydroshare(resource_id, file_path)
+        result = await download_file_from_hydroshare(
+            resource_id=resource_id,
+            hs_file_path=file_path,
+            base_path="Downloads"
+        )
 
         # Verify the result
         assert "error" in result
@@ -101,7 +109,11 @@ async def test_download_file_from_hydroshare_file_not_found():
         mock_rfc_manager.get_files.return_value = (["other_file.txt"], True)
 
         # Call the function
-        result = await download_file_from_hydroshare(resource_id, file_path)
+        result = await download_file_from_hydroshare(
+            resource_id=resource_id,
+            hs_file_path=file_path,
+            base_path="Downloads"
+        )
 
         # Verify the result
         assert "error" in result
@@ -141,7 +153,7 @@ async def test_list_available_files_for_download():
                     mock_get_path.return_value = "/tmp/path"
 
                     # Call the function
-                    result = await list_available_files_for_download(resource_id)
+                    result = await list_available_files_for_download(resource_id=resource_id, base_path="Downloads")
 
                     # Verify the result
                     assert "resource_id" in result
