@@ -10,7 +10,7 @@ async def check_file_status(file_path: str):
     rfc_manager = ResourceFileCacheManager()
     try:
         res_info = rfc_manager.get_hydroshare_resource_info(file_path)
-    except HydroShareAuthError as e:
+    except (HydroShareAuthError, ValueError) as e:
         return {"error": str(e)}
 
     success_response = {

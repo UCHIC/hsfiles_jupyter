@@ -14,7 +14,7 @@ async def upload_file_to_hydroshare(file_path: str):
     rfc_manager = ResourceFileCacheManager()
     try:
         res_info = rfc_manager.get_hydroshare_resource_info(file_path)
-    except HydroShareAuthError as e:
+    except (HydroShareAuthError, ValueError) as e:
         return {"error": str(e)}
     if res_info.hs_file_relative_path in res_info.files:
         err_msg = f"File {res_info.hs_file_path} already exists in HydroShare resource: {res_info.resource_id}"
