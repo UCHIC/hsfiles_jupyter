@@ -338,9 +338,26 @@ async function handleDownloadCommand(
         return;
     }
 
-    // Extract resource ID from path
-    const resourceId = pathParts[1];
+    // Extract resource ID from path - split by download directory
+    let resourceId = '';
+    const pathAfterDownloadDir = currentPath.split(downloadDir + '/')[1];
+    if (pathAfterDownloadDir) {
+        const resourceIdCandidate = pathAfterDownloadDir.split('/')[0];
+        if (isUuid4Hex(resourceIdCandidate)) {
+            resourceId = resourceIdCandidate;
+        }
+    }
 
+    if (!resourceId) {
+        await showDialog({
+            title: 'Error',
+            body: 'Could not find resource ID in the current path in file browser.',
+            buttons: [Dialog.okButton({label: 'OK'})]
+        });
+        return;
+    }
+    // get the base path from the current path - everything before the resource_id
+    const basePath = currentPath.split(resourceId)[0];
     const fileBrowser = tracker.currentWidget;
     disableFileBrowser(fileBrowser);
 
