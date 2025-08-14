@@ -285,6 +285,28 @@ def get_credentials() -> tuple[str, str]:
 
     return username, password
 
+@lru_cache(maxsize=None)
+def get_hydroshare_resource_download_dir() -> str:
+    """Get the directory where HydroShare resources are downloaded. This is configured via the JUPYTER_DOWNLOADS
+    environment variable. If not set, the default is 'Downloads'. This directory is relative to the notebook
+    root directory.
+    """
+    # NOTE: nbfetch uses JUPYTER_DOWNLOADS environment variable to determine the download directory
+    hs_download_dir = os.environ.get('JUPYTER_DOWNLOADS', 'Downloads')
+    hs_download_dir = hs_download_dir.rstrip("/").strip()
+    if not hs_download_dir:
+        hs_download_dir = "Downloads"
+
+    # check hs_download_dir exists in the notebook root directory
+    notebook_root_dir = get_notebook_dir()
+    if hs_download_dir.startswith(notebook_root_dir):
+        hs_download_dir = hs_download_dir[len(notebook_root_dir) + 1:]
+    if not os.path.exists(Path(notebook_root_dir) / hs_download_dir):
+        err_msg = f"HydroShare resource download directory '{hs_download_dir}' does not exist"
+        logger.error(err_msg)
+        raise ExtensionConfigurationError(err_msg)
+
+    return hs_download_dir
 
 def get_resource_id(file_path: str) -> str:
     log_err_msg = f"Resource id was not found in selected file path: {file_path}"
