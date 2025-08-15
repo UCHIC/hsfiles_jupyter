@@ -31,36 +31,44 @@ async def test_download_file_from_hydroshare_success():
         # Mock file_download
         mock_resource.file_download = AsyncMock()
 
-        # Mock os.makedirs
-        with patch("os.makedirs") as mock_makedirs:
-            # Mock get_local_absolute_file_path
-            with patch("hsfiles_jupyter.download_file.get_local_absolute_file_path") as mock_get_path:
-                mock_get_path.return_value = f"/tmp/{resource_id}/data/contents"
+        # Mock get_hydroshare_resource_download_dir to return the Downloads directory path
+        with patch("hsfiles_jupyter.download_file.get_hydroshare_resource_download_dir") as mock_get_download_dir:
+            mock_get_download_dir.return_value = "/tmp/Downloads"
 
-                # Call the function
-                result = await download_file_from_hydroshare(
-                    resource_id=resource_id,
-                    hs_file_path=file_path,
-                    base_path="Downloads"
-                )
+            # Mock os.path.exists to return True for directory existence checks
+            with patch("os.path.exists") as mock_exists:
+                mock_exists.return_value = True
 
-                # Verify the result
-                assert "success" in result
-                assert resource_id in result["success"]
-                assert file_path in result["success"]
+                # Mock os.makedirs
+                with patch("os.makedirs") as mock_makedirs:
+                    # Mock get_local_absolute_file_path
+                    with patch("hsfiles_jupyter.download_file.get_local_absolute_file_path") as mock_get_path:
+                        mock_get_path.return_value = f"/tmp/Downloads/{resource_id}/data/contents/{file_path}"
 
-                # Verify the mocks were called correctly
-                mock_rfc_manager.get_resource.assert_called_once_with(resource_id)
-                mock_rfc_manager.get_files.assert_called_once_with(mock_resource, refresh=True)
-                mock_resource.file_download.assert_called_once()
-                mock_makedirs.assert_called_once()
+                        # Call the function
+                        result = await download_file_from_hydroshare(
+                            resource_id=resource_id,
+                            hs_file_path=file_path,
+                            base_path=mock_get_download_dir.return_value
+                        )
 
-                # Verify that the cache was updated
-                mock_rfc_manager.update_resource_files_cache.assert_called_once_with(
-                    resource=mock_resource,
-                    file_path=file_path,
-                    update_type=FileCacheUpdateType.ADD
-                )
+                        # Verify the result
+                        assert "success" in result
+                        assert resource_id in result["success"]
+                        assert file_path in result["success"]
+
+                        # Verify the mocks were called correctly
+                        mock_rfc_manager.get_resource.assert_called_once_with(resource_id)
+                        mock_rfc_manager.get_files.assert_called_once_with(mock_resource, refresh=True)
+                        mock_resource.file_download.assert_called_once()
+                        mock_makedirs.assert_called_once()
+
+                        # Verify that the cache was updated
+                        mock_rfc_manager.update_resource_files_cache.assert_called_once_with(
+                            resource=mock_resource,
+                            file_path=file_path,
+                            update_type=FileCacheUpdateType.ADD
+                        )
 
 
 @pytest.mark.asyncio
@@ -108,16 +116,51 @@ async def test_download_file_from_hydroshare_file_not_found():
         # Mock get_files to return a list not containing our file
         mock_rfc_manager.get_files.return_value = (["other_file.txt"], True)
 
-        # Call the function
-        result = await download_file_from_hydroshare(
-            resource_id=resource_id,
-            hs_file_path=file_path,
-            base_path="Downloads"
-        )
+        # Mock get_hydroshare_resource_download_dir to return the Downloads directory path
+        with patch("hsfiles_jupyter.download_file.get_hydroshare_resource_download_dir") as mock_get_download_dir:
+            mock_get_download_dir.return_value = "/tmp/Downloads"
 
-        # Verify the result
-        assert "error" in result
-        assert "not found" in result["error"]
+            # Call the function
+            result = await download_file_from_hydroshare(
+                resource_id=resource_id,
+                hs_file_path=file_path,
+                base_path=mock_get_download_dir.return_value
+            )
+
+            # Verify the result
+            assert "error" in result
+            assert "not found" in result["error"]
+
+@pytest.mark.asyncio
+async def test_download_file_from_outside_download_dir_fails():
+    """Test file download from outside the HydroShare download directory should fail."""
+    resource_id = "15723969f1d7494883ef5ad5845aac5f"
+    file_path = "example.txt"
+
+    # Mock the ResourceFileCacheManager
+    with patch("hsfiles_jupyter.download_file.ResourceFileCacheManager") as mock_rfc_manager_class:
+        mock_rfc_manager = MagicMock()
+        mock_rfc_manager_class.return_value = mock_rfc_manager
+
+        # Mock get_hydroshare_resource_download_dir to return the Downloads directory path
+        with patch("hsfiles_jupyter.download_file.get_hydroshare_resource_download_dir") as mock_get_download_dir:
+            mock_get_download_dir.return_value = "/tmp/Downloads"
+
+            # Mock os.path.exists to return True for directory existence checks
+            with patch("os.path.exists") as mock_exists:
+                mock_exists.return_value = True
+
+                # Call the function
+                result = await download_file_from_hydroshare(
+                    resource_id=resource_id,
+                    hs_file_path=file_path,
+                    base_path="/tmp/OtherDir"
+                )
+
+                # Verify the result
+                assert "error" in result
+                assert "Select the option to download from within the resource id folder in the HydroShare download"
+                " directory." in result["error"]
 
 
 @pytest.mark.asyncio
@@ -139,26 +182,33 @@ async def test_list_available_files_for_download():
         remote_files = ["file1.txt", "file2.txt", "file3.txt"]
         mock_rfc_manager.get_files.return_value = (remote_files, True)
 
-        # Mock os.path.exists and os.walk to simulate some files already downloaded
-        with patch("os.path.exists") as mock_exists:
-            mock_exists.return_value = True
+        # Mock get_hydroshare_resource_download_dir to return the Downloads directory path
+        with patch("hsfiles_jupyter.download_file.get_hydroshare_resource_download_dir") as mock_get_download_dir:
+            mock_get_download_dir.return_value = "/tmp/Downloads"
 
-            with patch("os.walk") as mock_walk:
-                mock_walk.return_value = [
-                    ("/tmp/path", [], ["file1.txt"]),  # file1.txt already exists locally
-                ]
+            # Mock os.path.exists and os.walk to simulate some files already downloaded
+            with patch("os.path.exists") as mock_exists:
+                mock_exists.return_value = True
 
-                # Mock get_local_absolute_file_path
-                with patch("hsfiles_jupyter.download_file.get_local_absolute_file_path") as mock_get_path:
-                    mock_get_path.return_value = "/tmp/path"
+                with patch("os.walk") as mock_walk:
+                    mock_walk.return_value = [
+                        ("/tmp/path", [], ["file1.txt"]),  # file1.txt already exists locally
+                    ]
 
-                    # Call the function
-                    result = await list_available_files_for_download(resource_id=resource_id, base_path="Downloads")
+                    # Mock get_local_absolute_file_path
+                    with patch("hsfiles_jupyter.download_file.get_local_absolute_file_path") as mock_get_path:
+                        mock_get_path.return_value = "/tmp/path"
 
-                    # Verify the result
-                    assert "resource_id" in result
-                    assert result["resource_id"] == resource_id
-                    assert "available_files" in result
-                    assert "file1.txt" not in result["available_files"]  # Should be filtered out
-                    assert "file2.txt" in result["available_files"]
-                    assert "file3.txt" in result["available_files"]
+                        # Call the function
+                        result = await list_available_files_for_download(
+                            resource_id=resource_id,
+                            base_path=mock_get_download_dir.return_value
+                        )
+
+                        # Verify the result
+                        assert "resource_id" in result
+                        assert result["resource_id"] == resource_id
+                        assert "available_files" in result
+                        assert "file1.txt" not in result["available_files"]  # Should be filtered out
+                        assert "file2.txt" in result["available_files"]
+                        assert "file3.txt" in result["available_files"]
