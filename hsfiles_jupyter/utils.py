@@ -12,7 +12,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from hsclient import HydroShare
-from hsclient.hydroshare import Resource
+from hsclient.hydroshare import File, Resource
 from jupyter_server.serverapp import ServerApp
 from requests.exceptions import ConnectionError
 
@@ -54,7 +54,7 @@ class HydroShareResourceInfo:
     resource: Resource
     resource_id: str
     hs_file_path: str
-    files: list
+    files: list[File]
     refresh: bool
     hs_file_relative_path: str
 
@@ -112,26 +112,26 @@ class HydroShareWrapper:
 class ResourceFilesCache:
     """A class to manage a file cache for files in a HydroShare resource."""
 
-    _file_paths: list[str]
+    _files: list[File]
     _resource: Resource
     _refreshed_at: datetime = field(default_factory=datetime.now)
 
-    def update_files_cache(self, file_path: str, update_type: FileCacheUpdateType) -> None:
-        if update_type == FileCacheUpdateType.ADD:
-            self._file_paths.append(file_path)
-        elif update_type == FileCacheUpdateType.DELETE:
-            self._file_paths.remove(file_path)
+    def update_files_cache(self, res_file: File, update_type: FileCacheUpdateType) -> None:
+        if update_type == FileCacheUpdateType.ADD and res_file not in self._files:
+            self._files.append(res_file)
+        elif update_type == FileCacheUpdateType.DELETE and res_file in self._files:
+            self._files.remove(res_file)
 
     def load_files_to_cache(self) -> None:
         # refresh resource hydroshare session only if 30 seconds have passed since last refresh
         if (datetime.now() - self._refreshed_at).total_seconds() > 30:
             HydroShareWrapper().update_resource_session(self._resource)
         self._resource.refresh()
-        self._file_paths = self._resource.files(search_aggregations=True)
+        self._files = self._resource.files(search_aggregations=True)
         self._refreshed_at = datetime.now()
 
-    def get_files(self) -> list[str]:
-        return self._file_paths
+    def get_files(self) -> list[File]:
+        return self._files
 
     def is_due_for_refresh(self) -> bool:
         refresh_interval = get_cache_refresh_interval()
@@ -163,6 +163,7 @@ class ResourceFileCacheManager:
         resource = self.get_resource_from_file_path(file_path)
 
         resource_id = resource.resource_id
+        # this is the absolute path of the file within the resource (starts with resource_id/data/contents/)
         hs_file_path = get_hs_file_path(file_path, resource_id)
 
         # get all files in the resource to check if the file to be acted on already exists in the resource
@@ -182,7 +183,7 @@ class ResourceFileCacheManager:
         return HydroShareWrapper().user_logged_in()
 
     def create_resource_file_cache(self, resource: Resource) -> ResourceFilesCache:
-        resource_file_cache = ResourceFilesCache(_file_paths=[], _resource=resource)
+        resource_file_cache = ResourceFilesCache(_files=[], _resource=resource)
         self.resource_file_caches.append(resource_file_cache)
         resource_file_cache.load_files_to_cache()
         return resource_file_cache
@@ -190,7 +191,7 @@ class ResourceFileCacheManager:
     def get_resource_file_cache(self, resource: Resource) -> ResourceFilesCache:
         return next((rc for rc in self.resource_file_caches if rc.resource.resource_id == resource.resource_id), None)
 
-    def get_files(self, resource: Resource, refresh=False) -> tuple[list, bool]:
+    def get_files(self, resource: Resource, refresh=False) -> tuple[list[File], bool]:
         """Get a list of file paths in a HydroShare resource. If the cache is up to date, return the cached files."""
 
         resource_file_cache = self.get_resource_file_cache(resource)
@@ -246,11 +247,11 @@ class ResourceFileCacheManager:
         return resource
 
     def update_resource_files_cache(
-        self, *, resource: Resource, file_path: str, update_type: FileCacheUpdateType
+        self, *, resource: Resource, res_file: File, update_type: FileCacheUpdateType
     ) -> None:
         resource_file_cache = self.get_resource_file_cache(resource)
         if resource_file_cache is not None:
-            resource_file_cache.update_files_cache(file_path, update_type)
+            resource_file_cache.update_files_cache(res_file, update_type)
         else:
             # This should not happen
             err_msg = (
@@ -386,6 +387,7 @@ def get_local_absolute_file_path(file_path: str) -> str:
 
 
 def get_hs_file_path(file_path: str, resource_id: str = None) -> str:
+    """Get the file path starting with resource_id/data/contents/ directory."""
     file_path = Path(file_path).as_posix()
     if resource_id is None:
         resource_id = get_resource_id(file_path)
