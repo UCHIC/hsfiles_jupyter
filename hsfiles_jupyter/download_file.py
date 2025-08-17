@@ -34,14 +34,12 @@ async def download_file_from_hydroshare(resource_id: str, hs_file_path: str, bas
     base_path = base_path.rstrip("/")
     # check the base path is the hydroshare download directory where nbfetch downloads the resources
     if base_path != hs_download_dir:
-        return {"error": "Select the option to download from within the resource id folder in the HydroShare download"
-        " directory."}
+        err_msg = f"Select the option to download from within the resource id folder in the HydroShare download" \
+        f" directory: {hs_download_dir}"
+        return {"error": err_msg}
 
-    # Get all files in the resource
-    files, _ = rfc_manager.get_files(resource, refresh=True)
-
-    # Check if the file exists in HydroShare
-    if hs_file_path not in files:
+    hs_file_to_download = resource.file(path=hs_file_path, search_aggregations=True)
+    if hs_file_to_download is None:
         err_msg = f"File {hs_file_path} is not found in HydroShare resource: {resource_id}"
         return {"error": err_msg}
 
@@ -50,6 +48,7 @@ async def download_file_from_hydroshare(resource_id: str, hs_file_path: str, bas
     # check the resource directory exists
     if not os.path.exists(get_local_absolute_file_path(local_dir_path)):
         return {"error": f"Local directory {local_dir_path} does not exist"}
+
     local_file_path = os.path.join(local_dir_path, hs_file_path)
 
     # Ensure the directory exists
@@ -60,10 +59,10 @@ async def download_file_from_hydroshare(resource_id: str, hs_file_path: str, bas
         save_path = get_local_absolute_file_path(os.path.dirname(local_file_path))
         resource.file_download(path=hs_file_path, save_path=save_path)
 
-        # Update the file cache to reflect the newly downloaded file
+        # update the files cache for the resource
         rfc_manager.update_resource_files_cache(
             resource=resource,
-            file_path=hs_file_path,
+            res_file=hs_file_to_download,
             update_type=FileCacheUpdateType.ADD
         )
 
@@ -95,9 +94,7 @@ async def list_available_files_for_download(resource_id: str, base_path: str):
     try:
         # Get the resource
         resource = rfc_manager.get_resource(resource_id)
-    except HydroShareAuthError as e:
-        return {"error": str(e)}
-    except ValueError as e:
+    except (HydroShareAuthError, ValueError) as e:
         return {"error": str(e)}
 
     hs_download_dir = get_hydroshare_resource_download_dir()

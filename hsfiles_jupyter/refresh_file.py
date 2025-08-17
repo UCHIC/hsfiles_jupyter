@@ -1,6 +1,7 @@
 import os
 
 from .utils import (
+    FileCacheUpdateType,
     HydroShareAuthError,
     ResourceFileCacheManager,
     get_local_absolute_file_path,
@@ -17,14 +18,19 @@ async def refresh_file_from_hydroshare(file_path: str):
     except (HydroShareAuthError, ValueError) as e:
         return {"error": str(e)}
 
-    if res_info.hs_file_relative_path not in res_info.files:
-        file_not_found = True
-        if not res_info.refresh:
-            files, _ = rfc_manager.get_files(res_info.resource, refresh=True)
-            file_not_found = res_info.hs_file_relative_path not in files
-        if file_not_found:
-            err_msg = f"File {res_info.hs_file_path} is not found in HydroShare resource: {res_info.resource_id}"
-            return {"error": err_msg}
+    # check file exists in HydroShare before trying to download it from HydroShare
+    res_file = res_info.resource.file(path=res_info.hs_file_relative_path, search_aggregations=True)
+    if res_file is None:
+        err_msg = f"File {res_info.hs_file_path} is not found in HydroShare resource: {res_info.resource_id}"
+        return {"error": err_msg}
+
+    if res_file not in res_info.files:
+        # update the files cache for the resource
+        rfc_manager.update_resource_files_cache(
+            resource=res_info.resource,
+            res_file=res_file,
+            update_type=FileCacheUpdateType.ADD
+        )
 
     file_dir = os.path.dirname(file_path)
     downloaded_file_path = get_local_absolute_file_path(file_dir)
