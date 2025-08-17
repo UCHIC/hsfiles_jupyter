@@ -31,28 +31,18 @@ async function requestAPI<T>(url: string, init: RequestInit): Promise<T> {
 
 // Cache for configuration to avoid repeated API calls
 let configCache: { download_dir?: string } | null = null;
-let configPromise: Promise<{ download_dir: string }> | null = null;
 
 async function getConfig(): Promise<{ download_dir: string }> {
     if (configCache) {
         return configCache as { download_dir: string };
     }
 
-    // If there's already a config request in progress, wait for it
-    if (configPromise) {
-        return configPromise;
-    }
+    const response = await requestAPI<{ download_dir: string }>('config', {
+        method: 'GET'
+    });
 
-    configPromise = (async () => {
-        const response = await requestAPI<{ download_dir: string }>('config', {
-            method: 'GET'
-        });
-
-        configCache = response;
-        return response;
-    })();
-
-    return configPromise;
+    configCache = response;
+    return response;
 }
 
 // Initialize config cache on extension load
