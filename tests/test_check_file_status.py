@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from hsclient.hydroshare import File
 
 from hsfiles_jupyter.check_file_status import check_file_status
 from hsfiles_jupyter.utils import HydroShareAuthError
@@ -9,7 +10,10 @@ from hsfiles_jupyter.utils import HydroShareAuthError
 @pytest.mark.asyncio
 async def test_check_file_status_exists_identical():
     """Test checking file status when file exists in HydroShare and is identical."""
-    file_path = "Downloads/15723969f1d7494883ef5ad5845aac5f/data/contents/example.txt"
+    resource_id = "15723969f1d7494883ef5ad5845aac5f"
+    res_file_path = f"{resource_id}/data/contents/example.txt"
+    res_file_url_path = f"https://www.hydroshare.org/resource/{res_file_path}"
+    local_file_path = res_file_path
 
     # Mock the ResourceFileCacheManager
     with patch("hsfiles_jupyter.check_file_status.ResourceFileCacheManager") as mock_rfc_manager_class:
@@ -18,24 +22,24 @@ async def test_check_file_status_exists_identical():
 
         # Mock get_hydroshare_resource_info
         mock_res_info = MagicMock()
-        mock_res_info.resource_id = "15723969f1d7494883ef5ad5845aac5f"
-        mock_res_info.hs_file_path = "example.txt"
+        mock_res_info.resource_id = resource_id
+        mock_res_info.hs_file_path = res_file_path
         mock_res_info.hs_file_relative_path = "example.txt"
 
-        # Create a mock file with a checksum
-        mock_file = MagicMock()
-        mock_file.checksum = "abc123"
-        # Make the mock file behave like a string for equality comparison
-        mock_file.__eq__ = lambda self, other: other == mock_res_info.hs_file_relative_path
+        # Create an actual File object with a checksum
+        mock_file = File("example.txt", res_file_url_path, "abc123")
         mock_res_info.files = [mock_file]  # File exists in HydroShare
+
+        # Mock the resource.file() method to return the File object
+        mock_res_info.resource.file.return_value = mock_file
 
         mock_rfc_manager.get_hydroshare_resource_info.return_value = mock_res_info
 
         # Mock compute_checksum to return the same checksum
         mock_rfc_manager.compute_checksum.return_value = "abc123"
 
-        # Call the function
-        result = await check_file_status(file_path)
+         # Call the function
+        result = await check_file_status(local_file_path)
 
         # Verify the result
         assert "success" in result
@@ -44,14 +48,17 @@ async def test_check_file_status_exists_identical():
         assert result["status"] == "Exists in HydroShare and they are identical"
 
         # Verify the mocks were called correctly
-        mock_rfc_manager.get_hydroshare_resource_info.assert_called_once_with(file_path)
-        mock_rfc_manager.compute_checksum.assert_called_once_with(file_path)
+        mock_rfc_manager.get_hydroshare_resource_info.assert_called_once_with(local_file_path)
+        mock_rfc_manager.compute_checksum.assert_called_once_with(local_file_path)
 
 
 @pytest.mark.asyncio
 async def test_check_file_status_exists_different():
     """Test checking file status when file exists in HydroShare but is different."""
-    file_path = "Downloads/15723969f1d7494883ef5ad5845aac5f/data/contents/example.txt"
+    resource_id = "15723969f1d7494883ef5ad5845aac5f"
+    res_file_path = f"{resource_id}/data/contents/example.txt"
+    res_file_url_path = f"https://www.hydroshare.org/resource/{res_file_path}"
+    local_file_path = res_file_path
 
     # Mock the ResourceFileCacheManager
     with patch("hsfiles_jupyter.check_file_status.ResourceFileCacheManager") as mock_rfc_manager_class:
@@ -60,16 +67,16 @@ async def test_check_file_status_exists_different():
 
         # Mock get_hydroshare_resource_info
         mock_res_info = MagicMock()
-        mock_res_info.resource_id = "15723969f1d7494883ef5ad5845aac5f"
-        mock_res_info.hs_file_path = "example.txt"
+        mock_res_info.resource_id = resource_id
+        mock_res_info.hs_file_path = res_file_path
         mock_res_info.hs_file_relative_path = "example.txt"
 
-        # Create a mock file with a checksum
-        mock_file = MagicMock()
-        mock_file.checksum = "abc123"
-        # Make the mock file behave like a string for equality comparison
-        mock_file.__eq__ = lambda self, other: other == mock_res_info.hs_file_relative_path
+        # Create an actual File object with a checksum
+        mock_file = File("example.txt", res_file_url_path, "abc123")
         mock_res_info.files = [mock_file]  # File exists in HydroShare
+
+        # Mock the resource.file() method to return the File object
+        mock_res_info.resource.file.return_value = mock_file
 
         mock_rfc_manager.get_hydroshare_resource_info.return_value = mock_res_info
 
@@ -77,7 +84,7 @@ async def test_check_file_status_exists_different():
         mock_rfc_manager.compute_checksum.return_value = "def456"
 
         # Call the function
-        result = await check_file_status(file_path)
+        result = await check_file_status(local_file_path)
 
         # Verify the result
         assert "success" in result
@@ -86,14 +93,17 @@ async def test_check_file_status_exists_different():
         assert result["status"] == "Exists in HydroShare but they are different"
 
         # Verify the mocks were called correctly
-        mock_rfc_manager.get_hydroshare_resource_info.assert_called_once_with(file_path)
-        mock_rfc_manager.compute_checksum.assert_called_once_with(file_path)
+        mock_rfc_manager.get_hydroshare_resource_info.assert_called_once_with(local_file_path)
+        mock_rfc_manager.compute_checksum.assert_called_once_with(local_file_path)
 
 
 @pytest.mark.asyncio
 async def test_check_file_status_exists_no_checksum():
-    """Test checking file status when file exists in HydroShare but without checksum comparison."""
-    file_path = "Downloads/15723969f1d7494883ef5ad5845aac5f/data/contents/example.txt"
+    """Test checking file status when file exists in HydroShare - checksum comparison will always happen."""
+    resource_id = "15723969f1d7494883ef5ad5845aac5f"
+    res_file_path = f"{resource_id}/data/contents/example.txt"
+    res_file_url_path = f"https://www.hydroshare.org/resource/{res_file_path}"
+    local_file_path = res_file_path
 
     # Mock the ResourceFileCacheManager
     with patch("hsfiles_jupyter.check_file_status.ResourceFileCacheManager") as mock_rfc_manager_class:
@@ -102,36 +112,42 @@ async def test_check_file_status_exists_no_checksum():
 
         # Mock get_hydroshare_resource_info
         mock_res_info = MagicMock()
-        mock_res_info.resource_id = "15723969f1d7494883ef5ad5845aac5f"
-        mock_res_info.hs_file_path = "example.txt"
+        mock_res_info.resource_id = resource_id
+        mock_res_info.hs_file_path = res_file_path
         mock_res_info.hs_file_relative_path = "example.txt"
-        # In this test, we'll use an empty files list and mock the refresh path
-        mock_res_info.files = []
-        mock_res_info.refresh = False
-        mock_res_info.resource = MagicMock()
+
+        # Create an actual File object with a checksum
+        mock_file = File("example.txt", res_file_url_path, "xyz789")
+        mock_res_info.files = []  # File not in cache initially
+
+        # Mock the resource.file() method to return the File object
+        mock_res_info.resource.file.return_value = mock_file
+
         mock_rfc_manager.get_hydroshare_resource_info.return_value = mock_res_info
 
-        # Mock get_files to return a list containing our file
-        mock_rfc_manager.get_files.return_value = (["example.txt"], True)
+        # Mock compute_checksum to return a different checksum
+        mock_rfc_manager.compute_checksum.return_value = "local123"
 
         # Call the function
-        result = await check_file_status(file_path)
+        result = await check_file_status(local_file_path)
 
         # Verify the result
         assert "success" in result
         assert mock_res_info.resource_id in result["success"]
         assert mock_res_info.hs_file_path in result["success"]
-        assert result["status"] == "Exists in HydroShare"
+        assert result["status"] == "Exists in HydroShare but they are different"
 
         # Verify the mocks were called correctly
-        mock_rfc_manager.get_hydroshare_resource_info.assert_called_once_with(file_path)
-        mock_rfc_manager.get_files.assert_called_once_with(mock_res_info.resource, refresh=True)
+        mock_rfc_manager.get_hydroshare_resource_info.assert_called_once_with(local_file_path)
+        mock_rfc_manager.compute_checksum.assert_called_once_with(local_file_path)
 
 
 @pytest.mark.asyncio
 async def test_check_file_status_not_exists():
     """Test checking file status when file does not exist in HydroShare."""
-    file_path = "Downloads/15723969f1d7494883ef5ad5845aac5f/data/contents/example.txt"
+    resource_id = "15723969f1d7494883ef5ad5845aac5f"
+    res_file_path = f"{resource_id}/data/contents/example.txt"
+    local_file_path = res_file_path
 
     # Mock the ResourceFileCacheManager
     with patch("hsfiles_jupyter.check_file_status.ResourceFileCacheManager") as mock_rfc_manager_class:
@@ -140,15 +156,19 @@ async def test_check_file_status_not_exists():
 
         # Mock get_hydroshare_resource_info
         mock_res_info = MagicMock()
-        mock_res_info.resource_id = "15723969f1d7494883ef5ad5845aac5f"
-        mock_res_info.hs_file_path = "example.txt"
+        mock_res_info.resource_id = resource_id
+        mock_res_info.hs_file_path = res_file_path
         mock_res_info.hs_file_relative_path = "example.txt"
         mock_res_info.files = []  # File doesn't exist in HydroShare
         mock_res_info.refresh = True  # Already refreshed
+
+        # Mock the resource.file() method to return None (file not found)
+        mock_res_info.resource.file.return_value = None
+
         mock_rfc_manager.get_hydroshare_resource_info.return_value = mock_res_info
 
         # Call the function
-        result = await check_file_status(file_path)
+        result = await check_file_status(local_file_path)
 
         # Verify the result
         assert "success" in result
@@ -157,13 +177,16 @@ async def test_check_file_status_not_exists():
         assert result["status"] == "Does not exist in HydroShare"
 
         # Verify the mocks were called correctly
-        mock_rfc_manager.get_hydroshare_resource_info.assert_called_once_with(file_path)
+        mock_rfc_manager.get_hydroshare_resource_info.assert_called_once_with(local_file_path)
 
 
 @pytest.mark.asyncio
 async def test_check_file_status_not_exists_with_refresh():
     """Test checking file status when file is not found in HydroShare, even after refreshing."""
-    file_path = "Downloads/15723969f1d7494883ef5ad5845aac5f/data/contents/example.txt"
+    resource_id = "15723969f1d7494883ef5ad5845aac5f"
+    res_file_path = f"{resource_id}/data/contents/example.txt"
+    res_file_url_path = f"https://www.hydroshare.org/resource/{res_file_path}"
+    local_file_path = "example.txt"
 
     # Mock the ResourceFileCacheManager
     with patch("hsfiles_jupyter.check_file_status.ResourceFileCacheManager") as mock_rfc_manager_class:
@@ -172,19 +195,24 @@ async def test_check_file_status_not_exists_with_refresh():
 
         # Mock get_hydroshare_resource_info
         mock_res_info = MagicMock()
-        mock_res_info.resource_id = "15723969f1d7494883ef5ad5845aac5f"
-        mock_res_info.hs_file_path = "example.txt"
+        mock_res_info.resource_id = resource_id
+        mock_res_info.hs_file_path = res_file_path
         mock_res_info.hs_file_relative_path = "example.txt"
         mock_res_info.files = []  # File doesn't exist in HydroShare
         mock_res_info.refresh = False  # Not refreshed yet
         mock_res_info.resource = MagicMock()
+
+        # Mock the resource.file() method to return None (file not found)
+        mock_res_info.resource.file.return_value = None
+
         mock_rfc_manager.get_hydroshare_resource_info.return_value = mock_res_info
 
         # Mock get_files to return a list not containing our file
-        mock_rfc_manager.get_files.return_value = (["other_file.txt"], True)
+        mock_file = File("example.txt", res_file_url_path, "xyz789")
+        mock_rfc_manager.get_files.return_value = ([mock_file], True)
 
         # Call the function
-        result = await check_file_status(file_path)
+        result = await check_file_status(local_file_path)
 
         # Verify the result
         assert "success" in result
@@ -193,8 +221,8 @@ async def test_check_file_status_not_exists_with_refresh():
         assert result["status"] == "Does not exist in HydroShare"
 
         # Verify the mocks were called correctly
-        mock_rfc_manager.get_hydroshare_resource_info.assert_called_once_with(file_path)
-        mock_rfc_manager.get_files.assert_called_once_with(mock_res_info.resource, refresh=True)
+        mock_rfc_manager.get_hydroshare_resource_info.assert_called_once_with(local_file_path)
+        mock_res_info.resource.file.assert_called_once_with(path=local_file_path, search_aggregations=True)
 
 
 @pytest.mark.asyncio
@@ -242,8 +270,10 @@ async def test_check_file_status_file_not_in_download_dir_error():
 @pytest.mark.asyncio
 async def test_check_file_status_file_in_correct_download_dir():
     """Test checking file status when file IS in the correct download directory."""
+    resource_id = "15723969f1d7494883ef5ad5845aac5f"
+    res_file_path = f"{resource_id}/data/contents/example.txt"
     # Use a file path that DOES start with the expected download directory
-    file_path = "Downloads/15723969f1d7494883ef5ad5845aac5f/data/contents/example.txt"
+    local_file_path = f"Downloads/{res_file_path}"
 
     # Mock the ResourceFileCacheManager to avoid actual HydroShare calls
     with patch("hsfiles_jupyter.check_file_status.ResourceFileCacheManager") as mock_rfc_manager_class:
@@ -257,15 +287,15 @@ async def test_check_file_status_file_in_correct_download_dir():
 
             # Mock get_hydroshare_resource_info to return a valid response
             mock_res_info = MagicMock()
-            mock_res_info.resource_id = "15723969f1d7494883ef5ad5845aac5f"
-            mock_res_info.hs_file_path = "example.txt"
+            mock_res_info.resource_id = resource_id
+            mock_res_info.hs_file_path = res_file_path
             mock_res_info.hs_file_relative_path = "example.txt"
             mock_res_info.files = []  # File doesn't exist in HydroShare
             mock_res_info.refresh = True  # Already refreshed
             mock_rfc_manager.get_hydroshare_resource_info.return_value = mock_res_info
 
             # Call the function - this should NOT trigger a validation error
-            result = await check_file_status(file_path)
+            result = await check_file_status(local_file_path)
 
             # Verify the result - should be a success response, not an error
             # This proves that path validation is working: correct path = no error
