@@ -1,0 +1,27 @@
+# ruff.toml
+
+# Set max line length to 120 characters
+line-length = 120
+
+[lint]
+# Enable specific linting rule sets
+select = ["E", "F", "W", "I"]
+
+# Optionally, ignore specific rules
+
+# Optionally, extend excludes for folders you don't want to lint
+exclude = [
+  ".git",
+  "__pycache__",
+  "build",
+  "dist",
+  ".gitignore",
+  "MANIFEST.in",
+  "README.md",
+  "tests/test_handlers_backup.py"
+]
+
+# Format the code automatically (like Black)
+[format]
+quote-style = "double"
+line-ending = "lf"

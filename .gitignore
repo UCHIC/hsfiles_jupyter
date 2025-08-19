@@ -10,3 +10,9 @@ dist/
 .pypirc
 # typescript/javascript package manager files
 yarn.lock
+hsfiles_jupyter/labextension/
+
+
+#Ignore vscode AI rules
+.github/copilot-instructions.md
+.github/copilot.json
