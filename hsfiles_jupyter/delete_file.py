@@ -1,8 +1,8 @@
 from .utils import (
     FileCacheUpdateType,
+    HydroShareAuthError,
     ResourceFileCacheManager,
     logger,
-    HydroShareAuthError,
 )
 
 
@@ -38,14 +38,17 @@ async def delete_file_from_hydroshare(file_path: str):
     try:
         # deleting from HydroShare
         res_info.resource.file_delete(hs_file_to_delete)
-        rfc_manager.update_resource_files_cache(resource=res_info.resource, file_path=res_info.hs_file_relative_path,
-                                                update_type=FileCacheUpdateType.DELETE)
+        rfc_manager.update_resource_files_cache(
+            resource=res_info.resource, file_path=res_info.hs_file_relative_path, update_type=FileCacheUpdateType.DELETE
+        )
     except Exception as e:
         hs_error = str(e)
-        err_msg = (f'Failed to delete file: {res_info.hs_file_path} from HydroShare'
-                   f' resource: {res_info.resource_id}. Error: {hs_error}')
+        err_msg = (
+            f"Failed to delete file: {res_info.hs_file_path} from HydroShare"
+            f" resource: {res_info.resource_id}. Error: {hs_error}"
+        )
         logger.error(err_msg)
         return {"error": err_msg}
 
-    delete_success_msg = f'File {res_info.hs_file_path} was deleted from HydroShare resource: {res_info.resource_id}'
+    delete_success_msg = f"File {res_info.hs_file_path} was deleted from HydroShare resource: {res_info.resource_id}"
     return {"success": delete_success_msg}

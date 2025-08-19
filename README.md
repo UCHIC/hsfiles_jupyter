@@ -45,9 +45,9 @@ python3 -m jupyter lab
 
 1. Setup a notebook dir to be used as the root directory in JupyterLab. Example: ~/Documents/hsfiles_jupyter
 
-   1.1. Create a directory called "Downloads"  under the notebook root directory. Example: ~/Documents/hsfiles_jupyter/Downloads 
+   1.1. Create a directory called "Downloads"  under the notebook root directory. Example: ~/Documents/hsfiles_jupyter/Downloads
 
-   1.2. Download a HydroShare resource that you own and extract the contents to the "Downloads" directory.  
+   1.2. Download a HydroShare resource that you own and extract the contents to the "Downloads" directory.
 
 2. Export your HydroShare credentials as environment variables. This is needed for local development only:
 ```shell

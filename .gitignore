@@ -10,3 +10,4 @@ dist/
 .pypirc
 # typescript/javascript package manager files
 yarn.lock
+hsfiles_jupyter/labextension/

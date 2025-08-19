@@ -117,10 +117,10 @@ async function handleUploadCommand(
             body: JSON.stringify({path}),
         });
 
-        if (statusResponse.status === "Exists in HydroShare" || 
+        if (statusResponse.status === "Exists in HydroShare" ||
             statusResponse.status === "Exists in HydroShare but they are different" ||
             statusResponse.status === "Exists in HydroShare and they are identical") {
-            
+
             const result = await showDialog({
                 title: 'File Already Exists',
                 body: 'This file already exists in HydroShare. Would you like to replace it?',
@@ -137,13 +137,13 @@ async function handleUploadCommand(
                     method: 'POST',
                     body: JSON.stringify({path}),
                 });
-                
+
                 // Now upload the new file
                 const uploadResponse = await requestAPI<any>('upload', {
                     method: 'POST',
                     body: JSON.stringify({path}),
                 });
-                
+
                 await showDialog({
                     title: 'File upload to HydroShare was successful',
                     body: uploadResponse.success,
@@ -156,7 +156,7 @@ async function handleUploadCommand(
                 method: 'POST',
                 body: JSON.stringify({path}),
             });
-            
+
             await showDialog({
                 title: 'File upload to HydroShare was successful',
                 body: uploadResponse.success,
@@ -192,7 +192,7 @@ const extension: JupyterFrontEndPlugin<void> = {
         const {commands} = app;
         const {tracker} = factory;
         console.log('JupyterLab extension hsfiles_jupyter is activated!');
-        
+
         commands.addCommand('upload-to-hydroshare', {
             label: 'Upload File to HydroShare',
             icon: addIcon,

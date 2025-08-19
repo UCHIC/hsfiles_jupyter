@@ -16,15 +16,15 @@ from jupyter_server.serverapp import ServerApp
 from requests.exceptions import ConnectionError
 
 # Configure logging
-log_file_path = Path.home() / '.hsfiles_jupyter.log'
+log_file_path = Path.home() / ".hsfiles_jupyter.log"
 handler = RotatingFileHandler(
     filename=log_file_path,
-    maxBytes=1024*1024,  # 1 MB
+    maxBytes=1024 * 1024,  # 1 MB
     backupCount=3,  # Keep 3 backup files
-    encoding='utf-8'
+    encoding="utf-8",
 )
 handler.setLevel(logging.ERROR)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 handler.setFormatter(formatter)
 
 logger = logging.getLogger(__name__)
@@ -34,11 +34,14 @@ logger.addHandler(handler)
 
 class HydroShareAuthError(Exception):
     """Exception raised for errors in the HydroShare authentication."""
+
     pass
+
 
 class FileCacheUpdateType(Enum):
     ADD = 1
     DELETE = 2
+
 
 @dataclass
 class HydroShareResourceInfo:
@@ -49,6 +52,7 @@ class HydroShareResourceInfo:
     refresh: bool
     hs_file_relative_path: str
 
+
 class HydroShareWrapper:
     """A class to manage a HydroShare session."""
 
@@ -56,7 +60,7 @@ class HydroShareWrapper:
     _instance = None
 
     def __new__(cls, *args, **kwargs):
-        if not hasattr(cls, '_instance') or cls._instance is None:
+        if not hasattr(cls, "_instance") or cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
@@ -88,21 +92,20 @@ class HydroShareWrapper:
     def get_resource(self, resource_id):
         # this function is used to get the resource object from HydroShare using an active hydroshare client session
         # always use this function when there is a need to retrieve a resource object from hydroshare
-        return self.execute_with_retry(
-            lambda: self.hs.resource(resource_id)
-        )
+        return self.execute_with_retry(lambda: self.hs.resource(resource_id))
+
     def update_resource_session(self, resource):
         # before we do any operation (api call) using the resource object, we need to make sure the hydroshare client
         # session for the resource is still active/valid - here we are using the my_user_info api call to check
         # if the session is still valid, otherwise we create a new session
-        self.execute_with_retry(
-            lambda: self.hs.my_user_info()
-        )
+        self.execute_with_retry(lambda: self.hs.my_user_info())
         resource._hs_session = self.hs._hs_session
+
 
 @dataclass
 class ResourceFilesCache:
     """A class to manage a file cache for files in a HydroShare resource."""
+
     _file_paths: list[str]
     _resource: Resource
     _refreshed_at: datetime = field(default_factory=datetime.now)
@@ -134,13 +137,13 @@ class ResourceFilesCache:
 
 
 class ResourceFileCacheManager:
-    """ A class to manage resource file caches for multiple HydroShare resources."""
+    """A class to manage resource file caches for multiple HydroShare resources."""
 
     resource_file_caches: list[ResourceFilesCache] = []
     _instance: "ResourceFileCacheManager" = None
 
     def __new__(cls, *args, **kwargs):
-        if not hasattr(cls, '_instance') or cls._instance is None:
+        if not hasattr(cls, "_instance") or cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
@@ -164,7 +167,7 @@ class ResourceFileCacheManager:
             hs_file_path=hs_file_path,
             files=files,
             refresh=refresh,
-            hs_file_relative_path=hs_file_relative_path
+            hs_file_relative_path=hs_file_relative_path,
         )
 
     def user_authorized(self) -> bool:
@@ -216,9 +219,9 @@ class ResourceFileCacheManager:
             resource = HydroShareWrapper().get_resource(resource_id)
         except Exception as e:
             hs_err_msg = str(e)
-            if '404' in hs_err_msg:
+            if "404" in hs_err_msg:
                 err_msg = f"Resource with id {resource_id} was not found in Hydroshare"
-            elif '403' in hs_err_msg:
+            elif "403" in hs_err_msg:
                 err_msg = f"You are not authorized to access this resource: {resource_id}"
             else:
                 err_msg = f"Failed to get resource from Hydroshare with id {resource_id}"
@@ -234,15 +237,18 @@ class ResourceFileCacheManager:
         resource = self.get_resource(resource_id)
         return resource
 
-    def update_resource_files_cache(self, *, resource: Resource, file_path: str,
-                                    update_type: FileCacheUpdateType) -> None:
+    def update_resource_files_cache(
+        self, *, resource: Resource, file_path: str, update_type: FileCacheUpdateType
+    ) -> None:
         resource_file_cache = self.get_resource_file_cache(resource)
         if resource_file_cache is not None:
             resource_file_cache.update_files_cache(file_path, update_type)
         else:
             # This should not happen
-            err_msg = (f"Failed to update file list cache. Resource file cache was not found for "
-                       f"resource: {resource.resource_id}")
+            err_msg = (
+                f"Failed to update file list cache. Resource file cache was not found for "
+                f"resource: {resource.resource_id}"
+            )
             logger.error(err_msg)
 
     @classmethod
@@ -256,25 +262,25 @@ def get_credentials() -> (str, str):
     """The Hydroshare user credentials files used here are created by nbfetch as part of resource
     open with Jupyter functionality, This extension depends on those files for user credentials."""
 
-    username = os.getenv('HS_USER')
-    password = os.getenv('HS_PASS')
+    username = os.getenv("HS_USER")
+    password = os.getenv("HS_PASS")
 
     if username and password:
         return username, password
 
     home_dir = Path.home()
-    user_file = home_dir / '.hs_user'
-    pass_file = home_dir / '.hs_pass'
+    user_file = home_dir / ".hs_user"
+    pass_file = home_dir / ".hs_pass"
 
     for f in [user_file, pass_file]:
         if not os.path.exists(f):
             logger.error(f"User credentials file was not found: {f}")
             raise HydroShareAuthError("User credentials for HydroShare was not found")
 
-    with open(user_file, 'r') as uf:
+    with open(user_file, "r") as uf:
         username = uf.read().strip()
 
-    with open(pass_file, 'r') as pf:
+    with open(pass_file, "r") as pf:
         password = pf.read().strip()
 
     return username, password
@@ -283,8 +289,8 @@ def get_credentials() -> (str, str):
 def get_resource_id(file_path: str) -> str:
     log_err_msg = f"Resource id was not found in selected file path: {file_path}"
     user_err_msg = "Invalid resource file path"
-    if file_path.startswith('Downloads/'):
-        res_id = file_path.split('/')[1]
+    if file_path.startswith("Downloads/"):
+        res_id = file_path.split("/")[1]
         if len(res_id) != 32:
             logger.error(log_err_msg)
             raise ValueError(user_err_msg)
@@ -315,7 +321,7 @@ def get_hs_file_path(file_path: str) -> str:
     file_path = Path(file_path).as_posix()
     resource_id = get_resource_id(file_path)
     hs_file_path = file_path.split(resource_id, 1)[1]
-    hs_file_path = hs_file_path.lstrip('/')
+    hs_file_path = hs_file_path.lstrip("/")
     # add resource id to the file path if it doesn't already start with it
     if not hs_file_path.startswith(resource_id):
         hs_file_path = (Path(resource_id) / hs_file_path).as_posix()
@@ -324,7 +330,7 @@ def get_hs_file_path(file_path: str) -> str:
 
 @lru_cache(maxsize=None)
 def get_cache_refresh_interval() -> int:
-    return int(os.getenv('CACHE_REFRESH_INTERVAL', 180))
+    return int(os.getenv("CACHE_REFRESH_INTERVAL", 180))
 
 
 def calculate_md5(file_path):

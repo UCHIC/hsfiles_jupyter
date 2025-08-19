@@ -1,9 +1,8 @@
+import os
 from pathlib import Path
+
 from jupyter_core.paths import ENV_JUPYTER_PATH
 from jupyter_server.extension.serverextension import EnableServerExtensionApp
-import os
-
-
 
 _ERROR_MESSAGE_PREFIX = "Fatal, cannot link labextension."
 
@@ -16,6 +15,7 @@ def enable_server_extension(extension_name: str):
     o = EnableServerExtensionApp()
     o.toggle_server_extension(extension_name)
 
+
 def get_env_jupyter_path() -> Path:
     """Absolute path to Jupyter's ENV_JUPYTER_PATH.
     If multiple ENV_JUPYTER_PATH's are specified, the first is returned.
@@ -26,17 +26,16 @@ def get_env_jupyter_path() -> Path:
         error_message = f"{_ERROR_MESSAGE_PREFIX} ENV_CONFIG_PATH not set."
         raise ValueError(error_message) from e
 
-def link_prebuilt_labextension(
-    labextension_name: str, labextension_prebuilt_files_dir: str
-):
+
+def link_prebuilt_labextension(labextension_name: str, labextension_prebuilt_files_dir: str):
     labextension_prebuilt_files_dir = Path(labextension_prebuilt_files_dir).resolve()
 
     # naively verify that labextension exists (does not verify contents of directory. i.e. package.json exists)
-    if (
-        not labextension_prebuilt_files_dir.exists()
-        or not labextension_prebuilt_files_dir.is_dir()
-    ):
-        error_message = f"{_ERROR_MESSAGE_PREFIX} labextension_prebuilt_files_dir: {labextension_prebuilt_files_dir} does not exist."
+    if not labextension_prebuilt_files_dir.exists() or not labextension_prebuilt_files_dir.is_dir():
+        error_message = (
+            f"{_ERROR_MESSAGE_PREFIX} labextension_prebuilt_files_dir: "
+            f"{labextension_prebuilt_files_dir} does not exist."
+        )
         raise FileNotFoundError(error_message)
 
     labextensions_path = get_env_jupyter_path() / "labextensions"
@@ -48,13 +47,14 @@ def link_prebuilt_labextension(
 
     # choose not to fail raise exception if link_dir exists.
     if link_dir.exists():
-        if link_dir.is_symlink() and os.readlink(str(link_dir)) == str(
-            labextension_prebuilt_files_dir
-        ):
+        if link_dir.is_symlink() and os.readlink(str(link_dir)) == str(labextension_prebuilt_files_dir):
             print(f"{labextension_prebuilt_files_dir} already linked to {link_dir}")
         else:
             print(
-                f"Could not link {labextension_prebuilt_files_dir} to {link_dir}. {link_dir} already exists. Remove {link_dir} and reinstall."
+                (
+                    f"Could not link {labextension_prebuilt_files_dir} to {link_dir}. "
+                    f"{link_dir} already exists. Remove {link_dir} and reinstall."
+                )
             )
     else:
         # note: target_is_directory True, required for windows support
