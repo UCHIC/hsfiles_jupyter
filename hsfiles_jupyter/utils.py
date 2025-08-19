@@ -2,6 +2,7 @@ import hashlib
 import logging
 import os
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -11,7 +12,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from hsclient import HydroShare
-from hsclient.hydroshare import Resource
+from hsclient.hydroshare import File, Resource
 from jupyter_server.serverapp import ServerApp
 from requests.exceptions import ConnectionError
 
@@ -37,6 +38,11 @@ class HydroShareAuthError(Exception):
 
     pass
 
+class ExtensionConfigurationError(Exception):
+    """Exception raised for errors in the extension configuration."""
+
+    pass
+
 
 class FileCacheUpdateType(Enum):
     ADD = 1
@@ -48,7 +54,7 @@ class HydroShareResourceInfo:
     resource: Resource
     resource_id: str
     hs_file_path: str
-    files: list
+    files: list[File]
     refresh: bool
     hs_file_relative_path: str
 
@@ -106,26 +112,26 @@ class HydroShareWrapper:
 class ResourceFilesCache:
     """A class to manage a file cache for files in a HydroShare resource."""
 
-    _file_paths: list[str]
+    _files: list[File]
     _resource: Resource
     _refreshed_at: datetime = field(default_factory=datetime.now)
 
-    def update_files_cache(self, file_path: str, update_type: FileCacheUpdateType) -> None:
-        if update_type == FileCacheUpdateType.ADD:
-            self._file_paths.append(file_path)
-        elif update_type == FileCacheUpdateType.DELETE:
-            self._file_paths.remove(file_path)
+    def update_files_cache(self, res_file: File, update_type: FileCacheUpdateType) -> None:
+        if update_type == FileCacheUpdateType.ADD and res_file not in self._files:
+            self._files.append(res_file)
+        elif update_type == FileCacheUpdateType.DELETE and res_file in self._files:
+            self._files.remove(res_file)
 
     def load_files_to_cache(self) -> None:
         # refresh resource hydroshare session only if 30 seconds have passed since last refresh
         if (datetime.now() - self._refreshed_at).total_seconds() > 30:
             HydroShareWrapper().update_resource_session(self._resource)
         self._resource.refresh()
-        self._file_paths = self._resource.files(search_aggregations=True)
+        self._files = self._resource.files(search_aggregations=True)
         self._refreshed_at = datetime.now()
 
-    def get_files(self) -> list[str]:
-        return self._file_paths
+    def get_files(self) -> list[File]:
+        return self._files
 
     def is_due_for_refresh(self) -> bool:
         refresh_interval = get_cache_refresh_interval()
@@ -150,12 +156,15 @@ class ResourceFileCacheManager:
     def get_hydroshare_resource_info(self, file_path: str) -> HydroShareResourceInfo:
         """Get HydroShare resource information for a given file path."""
         file_path = Path(file_path).as_posix()
+        validate_file_path(file_path)
+
         if not self.user_authorized():
             raise HydroShareAuthError("User is not authorized with HydroShare")
         resource = self.get_resource_from_file_path(file_path)
 
         resource_id = resource.resource_id
-        hs_file_path = get_hs_file_path(file_path)
+        # this is the absolute path of the file within the resource (starts with resource_id/data/contents/)
+        hs_file_path = get_hs_file_path(file_path, resource_id)
 
         # get all files in the resource to check if the file to be acted on already exists in the resource
         files, refresh = self.get_files(resource)
@@ -174,7 +183,7 @@ class ResourceFileCacheManager:
         return HydroShareWrapper().user_logged_in()
 
     def create_resource_file_cache(self, resource: Resource) -> ResourceFilesCache:
-        resource_file_cache = ResourceFilesCache(_file_paths=[], _resource=resource)
+        resource_file_cache = ResourceFilesCache(_files=[], _resource=resource)
         self.resource_file_caches.append(resource_file_cache)
         resource_file_cache.load_files_to_cache()
         return resource_file_cache
@@ -182,7 +191,7 @@ class ResourceFileCacheManager:
     def get_resource_file_cache(self, resource: Resource) -> ResourceFilesCache:
         return next((rc for rc in self.resource_file_caches if rc.resource.resource_id == resource.resource_id), None)
 
-    def get_files(self, resource: Resource, refresh=False) -> (list, bool):
+    def get_files(self, resource: Resource, refresh=False) -> tuple[list[File], bool]:
         """Get a list of file paths in a HydroShare resource. If the cache is up to date, return the cached files."""
 
         resource_file_cache = self.get_resource_file_cache(resource)
@@ -238,11 +247,11 @@ class ResourceFileCacheManager:
         return resource
 
     def update_resource_files_cache(
-        self, *, resource: Resource, file_path: str, update_type: FileCacheUpdateType
+        self, *, resource: Resource, res_file: File, update_type: FileCacheUpdateType
     ) -> None:
         resource_file_cache = self.get_resource_file_cache(resource)
         if resource_file_cache is not None:
-            resource_file_cache.update_files_cache(file_path, update_type)
+            resource_file_cache.update_files_cache(res_file, update_type)
         else:
             # This should not happen
             err_msg = (
@@ -258,7 +267,7 @@ class ResourceFileCacheManager:
 
 
 @lru_cache(maxsize=None)
-def get_credentials() -> (str, str):
+def get_credentials() -> tuple[str, str]:
     """The Hydroshare user credentials files used here are created by nbfetch as part of resource
     open with Jupyter functionality, This extension depends on those files for user credentials."""
 
@@ -286,16 +295,76 @@ def get_credentials() -> (str, str):
     return username, password
 
 
+@lru_cache(maxsize=None)
+def get_hydroshare_resource_download_dir() -> str:
+    """Get the directory where HydroShare resources are downloaded. This is configured via the JUPYTER_DOWNLOADS
+    environment variable. If not set, the default is 'Downloads'. This directory is relative to the notebook
+    root directory.
+    """
+    # NOTE: nbfetch uses JUPYTER_DOWNLOADS environment variable to determine the download directory
+    hs_download_dir = os.environ.get('JUPYTER_DOWNLOADS', 'Downloads')
+    hs_download_dir = hs_download_dir.rstrip("/").strip()
+    if not hs_download_dir:
+        hs_download_dir = "Downloads"
+
+    # check hs_download_dir exists in the notebook root directory
+    notebook_root_dir = get_notebook_dir()
+    if hs_download_dir.startswith(notebook_root_dir):
+        hs_download_dir = hs_download_dir[len(notebook_root_dir) + 1:]
+    if not os.path.exists(Path(notebook_root_dir) / hs_download_dir):
+        err_msg = f"HydroShare resource download directory '{hs_download_dir}' does not exist"
+        logger.error(err_msg)
+        raise ExtensionConfigurationError(err_msg)
+
+    return hs_download_dir
+
+
+def validate_file_path(file_path: str) -> None:
+    """Validate the file path is within the HydroShare download directory."""
+
+    hs_download_dir = get_hydroshare_resource_download_dir()
+    if not file_path.startswith(hs_download_dir):
+        err_msg = f"File path {file_path} is not within the HydroShare download directory: {hs_download_dir}."
+        logger.error(err_msg)
+        raise ValueError(err_msg)
+
+    # check it has resource id in it
+    resource_id = get_resource_id(file_path)
+    if not resource_id:
+        err_msg = f"Resource id was not found in selected file path: {file_path}"
+        logger.error(err_msg)
+        raise ValueError(err_msg)
+
+    resource_file_path = get_hs_file_path(file_path, resource_id)
+    expected_path = os.path.join(resource_id, "data", "contents")
+    if not resource_file_path.startswith(expected_path):
+        err_msg = f"Invalid resource file path: {file_path}."
+        logger.error(err_msg)
+        raise ValueError(err_msg)
+
+
 def get_resource_id(file_path: str) -> str:
     log_err_msg = f"Resource id was not found in selected file path: {file_path}"
-    user_err_msg = "Invalid resource file path"
-    if file_path.startswith("Downloads/"):
-        res_id = file_path.split("/")[1]
-        if len(res_id) != 32:
-            logger.error(log_err_msg)
-            raise ValueError(user_err_msg)
-        return res_id
+    user_err_msg = f"Invalid resource file path: {file_path}"
 
+    resource_id = None
+    download_dir = get_hydroshare_resource_download_dir()
+    download_dir = f"{download_dir}/"
+    if not file_path.startswith(download_dir):
+        logger.error(log_err_msg)
+        raise ValueError(user_err_msg)
+
+    # Split by download_dir and get the part after it
+    after_downloads = file_path.split(download_dir, 1)[1]
+    # The resource_id should be the first part after download_dir
+    potential_resource_id = after_downloads.split("/")[0]
+    if is_uuid4_32(potential_resource_id):
+        resource_id = potential_resource_id
+
+    if resource_id:
+        return resource_id
+
+    # If we get here, no valid resource_id was found
     logger.error(log_err_msg)
     raise ValueError(user_err_msg)
 
@@ -317,9 +386,11 @@ def get_local_absolute_file_path(file_path: str) -> str:
     return (Path(notebook_root_dir) / file_path).as_posix()
 
 
-def get_hs_file_path(file_path: str) -> str:
+def get_hs_file_path(file_path: str, resource_id: str = None) -> str:
+    """Get the file path starting with resource_id/data/contents/ directory."""
     file_path = Path(file_path).as_posix()
-    resource_id = get_resource_id(file_path)
+    if resource_id is None:
+        resource_id = get_resource_id(file_path)
     hs_file_path = file_path.split(resource_id, 1)[1]
     hs_file_path = hs_file_path.lstrip("/")
     # add resource id to the file path if it doesn't already start with it
@@ -343,3 +414,12 @@ def calculate_md5(file_path):
             md5_hash.update(chunk)
 
     return md5_hash.hexdigest()
+
+def is_uuid4_32(value: str) -> bool:
+    """Check if value is a valid 32-char UUID v4 hex string."""
+    if len(value) != 32:
+        return False
+    try:
+        return uuid.UUID(value).version == 4
+    except ValueError:
+        return False

@@ -4,9 +4,10 @@ on:
   pull_request:
     branches:
       - main
+      - develop
   push:
     branches:
-      - main
+      - develop
 
 jobs:
   test:
@@ -52,8 +53,8 @@ jobs:
 
     - name: Install test dependencies
       run: |
-        pip install asynctest tornado pytest jupyter
+        pip install asynctest tornado pytest pytest-asyncio jupyter
 
     - name: Run tests
       run: |
-        pytest tests/test_handlers.py
+        pytest tests/

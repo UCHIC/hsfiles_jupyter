@@ -11,7 +11,7 @@ LABEXTENSION_PATH = os.path.join(HERE, PKG_NAME, "labextension")
 
 setup(
     name=PKG_NAME,
-    version="0.1.0",
+    version="0.2.0",
     author="Pabitra Dash",
     author_email="pabitra.dash@usu.edu",
     description="A JupyterLab extension to manage HydroShare resource files in JupyterLab",
@@ -34,7 +34,18 @@ setup(
         "jupyterlab==4.3.*",
         "jupyter_server==2.13.*",
     ],
-    extras_require={"dev": ["build", "setuptools", "wheel", "twine"]},
+    extras_require={
+        "dev": [
+            "build",
+            "setuptools",
+            "wheel",
+            "twine",
+            "pytest",
+            "pytest-asyncio",
+            "asynctest",
+            "tornado"
+        ]
+    },
     include_package_data=True,
     package_data={"hsfiles_jupyter": ["_version.py", "labextension/*", "labextension/static/*"]},
     zip_safe=False,
