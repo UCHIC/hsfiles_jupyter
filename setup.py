@@ -33,9 +33,8 @@ setup(
     python_requires=">=3.9",
     install_requires=[
         "hsclient>=1.1.6",
-        "notebook==6.5.*",
         "jupyterlab==4.3.*",
-        "jupyter_server==2.13.*",
+        "jupyter_server>=2.13,<3",
     ],
     extras_require={
         "dev": [
