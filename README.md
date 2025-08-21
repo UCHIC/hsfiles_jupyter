@@ -80,6 +80,8 @@ export HS_PASS=your_hydroshare_password
 
 ### Create distribution package to publish to PyPI
 
+**Note:** You will need a PyPI API token to publish packages. Generate one at [https://pypi.org/manage/account/token/](https://pypi.org/manage/account/token/) and configure it with `twine` or use it when prompted during upload.
+
 1. Clone the repository: `git clone https://github.com/hydroshare/hsfiles_jupyter.git`
 2. Navigate to the project root directory: `cd hsfiles_jupyter`
 3. Checkout the main branch: `git checkout -b main origin/main`
