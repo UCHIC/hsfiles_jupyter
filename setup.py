@@ -51,5 +51,11 @@ setup(
     },
     include_package_data=True,
     package_data={"hsfiles_jupyter": ["_version.py", "labextension/*", "labextension/static/*"]},
+    data_files=[
+        (
+            "etc/jupyter/jupyter_server_config.d",
+            ["jupyter-config/jupyter_server_config.d/hsfiles_jupyter.json"],
+        ),
+    ],
     zip_safe=False,
 )
