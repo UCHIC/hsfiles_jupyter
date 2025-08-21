@@ -11,7 +11,7 @@ LABEXTENSION_PATH = os.path.join(HERE, PKG_NAME, "labextension")
 
 setup(
     name=PKG_NAME,
-    version="0.2.0",
+    version="0.2.1",
     author="Pabitra Dash",
     author_email="pabitra.dash@usu.edu",
     description="A JupyterLab extension to manage HydroShare resource files in JupyterLab",
