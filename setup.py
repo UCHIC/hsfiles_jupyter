@@ -19,7 +19,10 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/hydroshare/hsfiles_jupyter",
     license="BSD-3-Clause",
-    packages=find_packages(include=["hsfiles_jupyter", "hsfiles_jupyter.*"]),
+    packages=find_packages(
+        include=["hsfiles_jupyter", "hsfiles_jupyter.*"],
+        exclude=["hsfiles_jupyter.labextension", "hsfiles_jupyter.labextension.*"]
+    ),
     classifiers=[
         "Development Status :: 4 - Beta",
         "Programming Language :: Python :: 3",
