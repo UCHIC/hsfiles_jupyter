@@ -54,8 +54,7 @@ class HydroShareResourceInfo:
     resource: Resource
     resource_id: str
     hs_file_path: str
-    files: list[File]
-    refresh: bool
+    files: list[File] # files in the resource, potentially from cache
     hs_file_relative_path: str
 
 
@@ -167,52 +166,50 @@ class ResourceFileCacheManager:
         hs_file_path = get_hs_file_path(file_path, resource_id)
 
         # get all files in the resource to check if the file to be acted on already exists in the resource
-        files, refresh = self.get_files(resource)
-        hs_data_path = get_hs_resource_data_path(resource_id).as_posix() + "/"
-        hs_file_relative_path = hs_file_path.split(hs_data_path, 1)[1]
+        files = self.get_files(resource)
+        hs_data_path_obj = get_hs_resource_data_path(resource_id)
+        hs_file_path_obj = Path(hs_file_path)
+        try:
+            hs_file_relative_path = hs_file_path_obj.relative_to(hs_data_path_obj).as_posix()
+        except ValueError:
+            logger.error(f"File path {hs_file_path} is not relative to {hs_data_path_obj}")
+            raise ValueError(f"Invalid file path structure for HydroShare: {file_path}")
+
         return HydroShareResourceInfo(
             resource=resource,
             resource_id=resource_id,
             hs_file_path=hs_file_path,
             files=files,
-            refresh=refresh,
             hs_file_relative_path=hs_file_relative_path,
         )
 
     def user_authorized(self) -> bool:
         return HydroShareWrapper().user_logged_in()
 
-    def create_resource_file_cache(self, resource: Resource) -> ResourceFilesCache:
-        resource_file_cache = ResourceFilesCache(_files=[], _resource=resource)
-        self.resource_file_caches.append(resource_file_cache)
-        resource_file_cache.load_files_to_cache()
-        return resource_file_cache
+    def _create_and_load_resource_file_cache(self, resource: Resource) -> ResourceFilesCache:
+        rfc = ResourceFilesCache(_files=[], _resource=resource)
+        self.resource_file_caches.append(rfc)
+        rfc.load_files_to_cache()
+        return rfc
 
     def get_resource_file_cache(self, resource: Resource) -> ResourceFilesCache:
         return next((rc for rc in self.resource_file_caches if rc.resource.resource_id == resource.resource_id), None)
 
-    def get_files(self, resource: Resource, refresh=False) -> tuple[list[File], bool]:
+    def get_files(self, resource: Resource, force_refresh: bool = False) -> list[File]:
         """Get a list of file paths in a HydroShare resource. If the cache is up to date, return the cached files."""
 
         resource_file_cache = self.get_resource_file_cache(resource)
         if resource_file_cache is None:
-            rfc = self.create_resource_file_cache(resource)
-            return rfc.get_files(), True
+            return self._create_and_load_resource_file_cache(resource).get_files()
 
-        if not refresh:
-            refresh = resource_file_cache.is_due_for_refresh()
-            if not refresh:
-                # letting the caller know that the cache doesn't need to be refreshed - it's up to date
-                return resource_file_cache.get_files(), True
-
-        if refresh:
+        if force_refresh or resource_file_cache.is_due_for_refresh():
             resource_file_cache.load_files_to_cache()
 
-        return resource_file_cache.get_files(), refresh
+        return resource_file_cache.get_files()
 
     def refresh_files_cache(self, resource: Resource) -> None:
         with ThreadPoolExecutor(max_workers=1) as executor:
-            executor.submit(self.get_files, resource, refresh=True)
+            executor.submit(self.get_files, resource, force_refresh=True)
 
     def get_resource(self, resource_id: str) -> Resource:
         resource = next(
@@ -237,7 +234,7 @@ class ResourceFileCacheManager:
 
             logger.error(f"{err_msg}. Error: {hs_err_msg}")
             raise ValueError(err_msg)
-        self.create_resource_file_cache(resource)
+        self._create_and_load_resource_file_cache(resource)
         return resource
 
     def get_resource_from_file_path(self, file_path) -> Resource:
@@ -347,24 +344,22 @@ def get_resource_id(file_path: str) -> str:
     log_err_msg = f"Resource id was not found in selected file path: {file_path}"
     user_err_msg = f"Invalid resource file path: {file_path}"
 
-    resource_id = None
-    download_dir = get_hydroshare_resource_download_dir()
-    download_dir = f"{download_dir}/"
-    if not file_path.startswith(download_dir):
+    file_path_obj = Path(file_path)
+    download_dir_obj = Path(get_hydroshare_resource_download_dir())
+
+    try:
+        # Get the path relative to the download directory
+        relative_path = file_path_obj.relative_to(download_dir_obj)
+        # The first component should be the resource ID
+        potential_resource_id = relative_path.parts[0]
+    except (ValueError, IndexError):
+        # file_path is not within download_dir or has no parts
         logger.error(log_err_msg)
         raise ValueError(user_err_msg)
 
-    # Split by download_dir and get the part after it
-    after_downloads = file_path.split(download_dir, 1)[1]
-    # The resource_id should be the first part after download_dir
-    potential_resource_id = after_downloads.split("/")[0]
     if is_uuid4_32(potential_resource_id):
-        resource_id = potential_resource_id
+        return potential_resource_id
 
-    if resource_id:
-        return resource_id
-
-    # If we get here, no valid resource_id was found
     logger.error(log_err_msg)
     raise ValueError(user_err_msg)
 
