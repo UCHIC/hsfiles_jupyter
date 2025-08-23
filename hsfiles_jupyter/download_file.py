@@ -106,7 +106,7 @@ async def list_available_files_for_download(resource_id: str, base_path: str):
         return {"error": err_msg}
 
     # Get all files in the resource
-    remote_files, _ = rfc_manager.get_files(resource, refresh=True)
+    remote_files = rfc_manager.get_files(resource, force_refresh=True)
 
     # Get the local directory path using the provided base_path
     local_dir_path = f"{base_path}/{resource_id}/data/contents"

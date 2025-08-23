@@ -32,7 +32,6 @@ async def test_refresh_file_from_hydroshare_success():
         mock_res_info.files = [mock_file]  # File exists in HydroShare
 
         mock_res_info.resource = MagicMock()
-        mock_res_info.refresh = False
 
         # Mock resource.file() to return the File object
         mock_res_info.resource.file.return_value = mock_file
@@ -79,6 +78,9 @@ async def test_refresh_file_from_hydroshare_auth_error():
         assert "error" in result
         assert "Auth error" in result["error"]
 
+        # Verify the mocks were called correctly
+        mock_rfc_manager.get_hydroshare_resource_info.assert_called_once_with(local_file_path)
+
 
 @pytest.mark.asyncio
 async def test_refresh_file_from_hydroshare_file_not_found():
@@ -98,7 +100,6 @@ async def test_refresh_file_from_hydroshare_file_not_found():
         mock_res_info.hs_file_path = res_file_path
         mock_res_info.hs_file_relative_path = "example.txt"
         mock_res_info.files = []  # File doesn't exist in HydroShare
-        mock_res_info.refresh = True  # Already refreshed
         mock_res_info.resource = MagicMock()
 
         # Mock resource.file() to return None (file not found)
@@ -113,45 +114,8 @@ async def test_refresh_file_from_hydroshare_file_not_found():
         assert "error" in result
         assert "not found" in result["error"]
 
-
-@pytest.mark.asyncio
-async def test_refresh_file_from_hydroshare_file_not_found_with_refresh():
-    """Test file refresh when file is not found in HydroShare, even after refreshing."""
-    resource_id = "15723969f1d7494883ef5ad5845aac5f"
-    res_file_path = f"{resource_id}/data/contents/example.txt"
-    res_file_url_path = f"https://www.hydroshare.org/resource/{res_file_path}"
-    file_path = "Downloads/15723969f1d7494883ef5ad5845aac5f/data/contents/example.txt"
-
-    # Mock the ResourceFileCacheManager
-    with patch("hsfiles_jupyter.refresh_file.ResourceFileCacheManager") as mock_rfc_manager_class:
-        mock_rfc_manager = MagicMock()
-        mock_rfc_manager_class.return_value = mock_rfc_manager
-
-        # Mock get_hydroshare_resource_info
-        mock_res_info = MagicMock()
-        mock_res_info.resource_id = resource_id
-        mock_res_info.hs_file_path = res_file_path
-        mock_res_info.hs_file_relative_path = "example.txt"
-        mock_res_info.files = []  # File doesn't exist in HydroShare
-        mock_res_info.refresh = False  # Not refreshed yet
-        mock_res_info.resource = MagicMock()
-        mock_rfc_manager.get_hydroshare_resource_info.return_value = mock_res_info
-
-        # Create File object for other file (not the one we're looking for)
-        other_file = File("other_file.txt", res_file_url_path, "def456")
-
-        # Mock get_files to return a list not containing our file
-        mock_rfc_manager.get_files.return_value = ([other_file], True)
-
-        # Mock resource.file() to return None (file not found)
-        mock_res_info.resource.file.return_value = None
-
-        # Call the function
-        result = await refresh_file_from_hydroshare(file_path)
-
-        # Verify the result
-        assert "error" in result
-        assert "not found" in result["error"]
+        # Verify the mocks were called correctly
+        mock_rfc_manager.get_hydroshare_resource_info.assert_called_once_with(file_path)
 
 
 @pytest.mark.asyncio
@@ -178,7 +142,6 @@ async def test_refresh_file_from_hydroshare_download_error():
         mock_res_info.files = [mock_file]  # File exists in HydroShare
 
         mock_res_info.resource = MagicMock()
-        mock_res_info.refresh = False
 
         # Mock resource.file() to return the File object
         mock_res_info.resource.file.return_value = mock_file
@@ -199,6 +162,10 @@ async def test_refresh_file_from_hydroshare_download_error():
             assert "error" in result
             assert "Failed to replace file" in result["error"]
             assert "Download failed" in result["error"]
+
+            # Verify the mocks were called correctly
+            mock_rfc_manager.get_hydroshare_resource_info.assert_called_once_with(file_path)
+            mock_get_path.assert_called_once_with(os.path.dirname(file_path))
 
 
 @pytest.mark.asyncio
@@ -246,7 +213,6 @@ async def test_refresh_file_from_hydroshare_file_in_correct_download_dir():
             mock_res_info.files = [mock_file]  # File exists in HydroShare
 
             mock_res_info.resource = MagicMock()
-            mock_res_info.refresh = False
 
             # Mock resource.file() to return the File object
             mock_res_info.resource.file.return_value = mock_file

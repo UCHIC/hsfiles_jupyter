@@ -66,6 +66,7 @@ async def test_download_file_from_hydroshare_success():
                         mock_rfc_manager.get_resource.assert_called_once_with(resource_id)
                         mock_resource.file.assert_called_once_with(path=file_path, search_aggregations=True)
                         mock_resource.file_download.assert_called_once()
+                        mock_exists.assert_called_once()
                         mock_makedirs.assert_called_once()
 
                         # Verify that the cache was updated
@@ -101,6 +102,9 @@ async def test_download_file_from_hydroshare_auth_error():
         assert "error" in result
         assert "Auth error" in result["error"]
 
+        # Verify the mocks were called correctly
+        mock_rfc_manager.get_resource.assert_called_once_with(resource_id)
+
 
 @pytest.mark.asyncio
 async def test_download_file_from_hydroshare_file_not_found():
@@ -123,7 +127,7 @@ async def test_download_file_from_hydroshare_file_not_found():
         other_file = File("other_file.txt", res_file_url_path, "def456")
 
         # Mock get_files to return a list not containing our file
-        mock_rfc_manager.get_files.return_value = ([other_file], True)
+        mock_rfc_manager.get_files.return_value = [other_file]
 
         # Mock resource.file() to return None (file not found)
         mock_resource.file.return_value = None
@@ -142,6 +146,11 @@ async def test_download_file_from_hydroshare_file_not_found():
             # Verify the result
             assert "error" in result
             assert "not found" in result["error"]
+
+            # Verify the mocks were called correctly
+            mock_rfc_manager.get_resource.assert_called_once_with(resource_id)
+            mock_resource.file.assert_called_once_with(path=file_path, search_aggregations=True)
+
 
 @pytest.mark.asyncio
 async def test_download_file_from_outside_download_dir_fails():
@@ -174,6 +183,9 @@ async def test_download_file_from_outside_download_dir_fails():
                 assert "Select the option to download from within the resource id folder in the HydroShare download"
                 " directory." in result["error"]
 
+                # Verify the mocks were called correctly
+                mock_rfc_manager.get_resource.assert_called_once_with(resource_id)
+
 
 @pytest.mark.asyncio
 async def test_list_available_files_for_download():
@@ -198,7 +210,7 @@ async def test_list_available_files_for_download():
         remote_files = [file1, file2, file3]
 
         # Mock get_files to return a list of File objects
-        mock_rfc_manager.get_files.return_value = (remote_files, True)
+        mock_rfc_manager.get_files.return_value = remote_files
 
         # Mock get_hydroshare_resource_download_dir to return the Downloads directory path
         with patch("hsfiles_jupyter.download_file.get_hydroshare_resource_download_dir") as mock_get_download_dir:
@@ -230,3 +242,11 @@ async def test_list_available_files_for_download():
                         assert "file1.txt" not in result["available_files"]  # Should be filtered out
                         assert "file2.txt" in result["available_files"]
                         assert "file3.txt" in result["available_files"]
+
+                        # Verify the mocks were called correctly
+                        mock_rfc_manager.get_resource.assert_called_once_with(resource_id)
+                        mock_rfc_manager.get_files.assert_called_once_with(mock_resource, force_refresh=True)
+                        mock_get_download_dir.assert_called_once()
+                        mock_exists.assert_called_once()
+                        mock_walk.assert_called_once()
+                        mock_get_path.assert_called_once()
