@@ -79,6 +79,9 @@ async def test_upload_file_to_hydroshare_auth_error():
         assert "error" in result
         assert "Auth error" in result["error"]
 
+        # Verify the mocks were called correctly
+        mock_rfc_manager.get_hydroshare_resource_info.assert_called_once_with(local_file_path)
+
 
 @pytest.mark.asyncio
 async def test_upload_file_to_hydroshare_file_exists():
@@ -114,6 +117,9 @@ async def test_upload_file_to_hydroshare_file_exists():
         # Verify the result
         assert "error" in result
         assert "already exists" in result["error"]
+
+        # Verify the mocks were called correctly
+        mock_rfc_manager.get_hydroshare_resource_info.assert_called_once_with(res_file_path)
 
 
 @pytest.mark.asyncio
@@ -156,6 +162,11 @@ async def test_upload_file_to_hydroshare_upload_error():
             assert "Failed to upload file" in result["error"]
             assert "Upload failed" in result["error"]
 
+            # Verify the mocks were called correctly
+            mock_rfc_manager.get_hydroshare_resource_info.assert_called_once_with(local_file_path)
+            mock_get_path.assert_called_once_with(local_file_path)
+            mock_res_info.resource.file_upload.assert_called_once()
+
 
 @pytest.mark.asyncio
 async def test_upload_file_to_hydroshare_file_not_in_download_dir_error():
@@ -172,6 +183,9 @@ async def test_upload_file_to_hydroshare_file_not_in_download_dir_error():
         # Verify we get an error for path validation
         assert "error" in result
         assert "is not within the HydroShare download directory" in result["error"]
+
+        # Verify the mocks were called correctly
+        mock_download_dir.assert_called_once()
 
 
 @pytest.mark.asyncio

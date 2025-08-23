@@ -69,6 +69,9 @@ async def test_delete_file_from_hydroshare_auth_error():
         assert "error" in result
         assert "Auth error" in result["error"]
 
+        # Verify the mocks were called correctly
+        mock_rfc_manager.get_hydroshare_resource_info.assert_called_once_with(file_path)
+
 
 @pytest.mark.asyncio
 async def test_delete_file_from_hydroshare_file_not_found():
@@ -100,6 +103,9 @@ async def test_delete_file_from_hydroshare_file_not_found():
         # Verify the result
         assert "error" in result
         assert "doesn't exist" in result["error"]
+
+        # Verify the mocks were called correctly
+        mock_rfc_manager.get_hydroshare_resource_info.assert_called_once_with(res_file_path)
 
 
 @pytest.mark.asyncio
@@ -138,6 +144,9 @@ async def test_delete_file_from_hydroshare_delete_error():
         assert "Failed to delete file" in result["error"]
         assert "Delete failed" in result["error"]
 
+        # Verify the mocks were called correctly
+        mock_rfc_manager.get_hydroshare_resource_info.assert_called_once_with(res_file_path)
+
 
 @pytest.mark.asyncio
 async def test_delete_file_from_hydroshare_file_not_in_download_dir_error():
@@ -154,6 +163,9 @@ async def test_delete_file_from_hydroshare_file_not_in_download_dir_error():
         # Verify we get an error for path validation
         assert "error" in result
         assert "is not within the HydroShare download directory" in result["error"]
+
+        # Verify the mocks were called correctly
+        mock_download_dir.assert_called_once()
 
 
 @pytest.mark.asyncio

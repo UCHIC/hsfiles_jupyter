@@ -78,6 +78,9 @@ async def test_refresh_file_from_hydroshare_auth_error():
         assert "error" in result
         assert "Auth error" in result["error"]
 
+        # Verify the mocks were called correctly
+        mock_rfc_manager.get_hydroshare_resource_info.assert_called_once_with(local_file_path)
+
 
 @pytest.mark.asyncio
 async def test_refresh_file_from_hydroshare_file_not_found():
@@ -110,6 +113,9 @@ async def test_refresh_file_from_hydroshare_file_not_found():
         # Verify the result
         assert "error" in result
         assert "not found" in result["error"]
+
+        # Verify the mocks were called correctly
+        mock_rfc_manager.get_hydroshare_resource_info.assert_called_once_with(file_path)
 
 
 @pytest.mark.asyncio
@@ -156,6 +162,10 @@ async def test_refresh_file_from_hydroshare_download_error():
             assert "error" in result
             assert "Failed to replace file" in result["error"]
             assert "Download failed" in result["error"]
+
+            # Verify the mocks were called correctly
+            mock_rfc_manager.get_hydroshare_resource_info.assert_called_once_with(file_path)
+            mock_get_path.assert_called_once_with(os.path.dirname(file_path))
 
 
 @pytest.mark.asyncio
